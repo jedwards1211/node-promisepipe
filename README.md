@@ -2,6 +2,9 @@
 
 Safely pipe node.js streams while capturing all errors to a single promise.
 
+## Install
+
+    npm install promisepipe
 
 ## API
 
@@ -16,11 +19,12 @@ keys:
   - `source`: The stream that caused the error
   - `originalError`: Original error from the stream
   - `message`: The error message from original error
+  
+Note: the last stream in the chain needs to be a writable stream, not a duplex/transform stream. If you use a 3rd party library which returns deplux streams instead of writable streams, you'll need to add something like [`.pipe(devnull())`](https://www.npmjs.com/package/dev-null) to the end, otherwise the promise will never resolve ([#16](https://github.com/epeli/node-promisepipe/issues/16)).
 
 ## Example
 
 ```javascript
-
 var promisePipe = require("promisepipe");
 
 promisePipe(
@@ -28,17 +32,33 @@ promisePipe(
     new UpcaseTransform(),
     fs.createWriteStream(OUTPUT_FILE),
 ).then(function(streams){
-    console.log("Yay, all streams are now closed/ended/finished!");
+    console.log("Done writing to the output file stream!");
 }, function(err) {
     console.log("This stream failed:", err.source);
     console.log("Original error was:", err.originalError);
 });
-
 ```
 
-## Install
+or with async-wait
 
-    npm install promisepipe
+```javascript
+var promisePipe = require("promisepipe");
+
+(async () => {
+  try {
+    await promisePipe(
+      fs.createReadStream(INPUT_FILE),
+      new UpcaseTransform(),
+      fs.createWriteStream(OUTPUT_FILE)
+    );
+    console.log("Done writing to the output file stream!");
+  } catch (err) {
+    console.log("This stream failed:", err.source);
+    console.log("Original error was:", err.originalError);
+  }
+})();
+
+```
 
 ## Why?
 
@@ -49,8 +69,8 @@ For example if the previous example is written like this:
 
 ```javascript
 fs.createReadStream(INPUT_FILE)
-.pipe(new UpcaseTransform())
-.pipe(fs.createReadStream(OUTPUT_FILE))
+  .pipe(new UpcaseTransform())
+  .pipe(fs.createReadStream(OUTPUT_FILE))
 ```
 
 It might crash your program at any time. You must handle the errors
@@ -66,5 +86,5 @@ fs.createReadStream(INPUT_FILE).on("error", function(err) {
 })
 ```
 
-Which is imo repeative and cumbersome (at least when you want to use promises).
-
+Handling errors this way can be very cumbersome. `promisepipe` simplifies
+error handling by sending the first error occurance into a promise.
